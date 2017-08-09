@@ -1,0 +1,3 @@
+DBConnectionString=jdbc:mysql://localhost:3306/magazinejavase?useSSL=false
+userName=root
+password=q8k6Zp1dm*X
