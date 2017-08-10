@@ -2,8 +2,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public class DataBase {
     private String nameOfDataBase;
@@ -11,6 +11,11 @@ public class DataBase {
     private List<Item> items;
 
     public DataBase() {
+    }
+
+    //сделал конструктор, который получает имена файлов, название базы и запускает создание
+    public DataBase(String customerFile, String itemFile, String nameOfDataBase){
+        buildDataBaseFromFile(customerFile, itemFile, nameOfDataBase);
     }
 
     public String getNameOfDataBase() {
@@ -37,40 +42,21 @@ public class DataBase {
         this.items = items;
     }
 
+    //доделал идею с записью имени базы в поле объекта. Теперь имя базы передается один раз, в самый первый метод
     public void buildDataBaseFromFile(String customerFile, String itemFile, String nameOfDataBase){
-        Connection connection = SQLUtilities.getConnection();
-        try {
-            connection.setAutoCommit(false);
-            this.setNameOfDataBase(nameOfDataBase);
-            List<String> customerInStringList = FileUtilities.readFile(customerFile);
-            List<String> itemInStringList = FileUtilities.readFile(itemFile);
-            this.createDataBaseByName(nameOfDataBase);
-            int i=customerFile.indexOf('.');
-            String nameOfTable = customerFile.substring(0, i);
-            this.createTableByName(nameOfTable, nameOfDataBase);
-            this.addColumnInTable(customerInStringList, nameOfTable, nameOfDataBase);
-
-            i=itemFile.indexOf('.');
-            nameOfTable = itemFile.substring(0, i);
-            this.createTableByName(nameOfTable, nameOfDataBase);
-            this.addColumnInTable(itemInStringList, nameOfTable, nameOfDataBase);
-
+            this.setNameOfDataBase(nameOfDataBase); //заношу имя базы в поле объекта
+            this.createDataBaseByName();
+            String nameOfTable = customerFile.split("\\.")[0]; //переделал обработку имени файла через regex
+            this.createTableByName(nameOfTable);
+            this.addColumnInTable(customerFile, nameOfTable);
+            nameOfTable = itemFile.split("\\.")[0];
+            this.createTableByName(nameOfTable);
+            this.addColumnInTable(itemFile, nameOfTable);
             this.createTablePurchases();
-
-            connection.commit();
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            try {
-                connection.rollback();
-            } catch (SQLException e1) {
-                e1.printStackTrace();
-            }
-        }
     }
 
     //создание базы данных по имени
-    public void createDataBaseByName (String nameOfDataBase){
+    public void createDataBaseByName (){
         Connection connection = SQLUtilities.getConnection();
         String comand = "create database if not exists " + nameOfDataBase;
         try (PreparedStatement statement = connection.prepareStatement(comand)) {
@@ -83,7 +69,7 @@ public class DataBase {
     }
 
     //создание таблицы по названию
-    public void createTableByName (String nameOfTable, String nameOfDataBase){
+    public void createTableByName (String nameOfTable){
         Connection connection = SQLUtilities.getConnection();
 
         String comand = "create table if not exists " + nameOfDataBase + "." + nameOfTable + "\n" +
@@ -128,58 +114,57 @@ public class DataBase {
     }
 
     //создание колонок для стола по его имени(названия колонок приходят сверху)
-    public void addColumnInTable (List<String> stringList, String nameOfTable, String nameOfDataBase){
-        Connection connection = SQLUtilities.getConnection();
-        Pattern pattern = Pattern.compile(";");
-        String[] nameOfFields = pattern.split(stringList.get(0));
+    public void addColumnInTable (String nameOfFile, String nameOfTable){
+        String[] nameOfFields = FileUtilities.getNameOfFieldsDataBaseFromFile(nameOfFile);
         if (nameOfTable.equals("Customers")) {
-            this.addColumnInCustomers(nameOfFields, nameOfTable, nameOfDataBase);
+            this.addColumnInCustomers(nameOfFields, nameOfTable);
         } else if (nameOfTable.equals("items")){
-            this.addColumnInItems(nameOfFields, nameOfTable, nameOfDataBase);
+            this.addColumnInItems(nameOfFields, nameOfTable);
         }
     }
 
     //добавляем колонки в Customers
-    public void addColumnInCustomers(String[] nameOfFields, String nameOfTable, String nameOfDataBase){
+    public void addColumnInCustomers(String[] nameOfFields, String nameOfTable){
         Connection connection = SQLUtilities.getConnection();
         try {
             connection.setAutoCommit(false);
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        List<String> createdColumns = getListCreatedColumns(nameOfTable);  //вынес получение листа с уже  созданными колонками за цикл
         for (int i = 0; i<nameOfFields.length; i++){
             String comand = "alter table " + nameOfDataBase +"." + nameOfTable + " add ";
             switch (nameOfFields[i]){
                 case "Name" :
-                    if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                    if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                         continue;
                     } else {
                         comand = comand + nameOfFields[i] + " varchar(30) not null";
                         break;
                     }
                 case "DateOfBirth" :
-                    if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                    if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                         continue;
                     } else {
                         comand = comand + nameOfFields[i] + " date not null";
                         break;
                     }
                 case "Address" :
-                    if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                    if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                         continue;
                     } else {
                         comand = comand + nameOfFields[i] + " varchar (90) not null";
                         break;
                     }
                 case "Gender" :
-                    if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                    if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                         continue;
                     } else {
                         comand = comand + nameOfFields[i] + " varchar(10) not null";
                         break;
                     }
                 case "PhoneNumber" :
-                    if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                    if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                         continue;
                     } else {
                         comand = comand + nameOfFields[i] + " varchar (30)";
@@ -188,7 +173,7 @@ public class DataBase {
                 case "LastPurchases" :
                     continue;
                 case "DateOfLastPurchase" :
-                    if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                    if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                         continue;
                     } else {
                         comand = comand + nameOfFields[i] + " date";
@@ -209,41 +194,42 @@ public class DataBase {
     }
 
         //добавляем колонки в Items
-        public void addColumnInItems(String[] nameOfFields, String nameOfTable, String nameOfDataBase){
+        public void addColumnInItems(String[] nameOfFields, String nameOfTable){
             Connection connection = SQLUtilities.getConnection();
             try {
                 connection.setAutoCommit(false);
             } catch (SQLException e) {
                 e.printStackTrace();
             }
+            List<String> createdColumns = getListCreatedColumns(nameOfTable);
             for (int i = 0; i<nameOfFields.length; i++){
                 String comand = "alter table " + nameOfDataBase +"." + nameOfTable + " add ";
                 switch (nameOfFields[i]){
                     case "id" :
                         continue;
                     case "title" :
-                        if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                        if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                             continue;
                         } else {
                             comand = comand + nameOfFields[i] + " varchar(60) not null";
                             break;
                         }
                     case "code" :
-                        if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                        if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                             continue;
                         } else {
                             comand = comand + nameOfFields[i] + " int not null";
                             break;
                         }
                     case "producer" :
-                        if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                        if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                             continue;
                         } else {
                             comand = comand + nameOfFields[i] + " varchar(60) not null";
                             break;
                         }
                     case "dateOfLastUpdate" :
-                        if (this.checkForAvailability(nameOfFields[i], nameOfTable, nameOfDataBase)){
+                        if (this.checkForAvailability(nameOfFields[i], createdColumns)){
                             continue;
                         } else {
                             comand = comand + nameOfFields[i] + " datetime";
@@ -264,20 +250,30 @@ public class DataBase {
         }
 
         //Проверка на наличие колонки в таблице
-        public boolean checkForAvailability (String nameOfColumn, String nameOfTable, String nameOfDataBase){
-            Connection connection = SQLUtilities.getConnection();
-            ResultSet rs = null;
-            String comand = "show columns from " + nameOfDataBase + "." + nameOfTable;
-            try (PreparedStatement statement = connection.prepareStatement(comand)){
-                rs = statement.executeQuery();
-                while (rs.next()){
-                    if(nameOfColumn.equals(rs.getString("Field"))){
+        public boolean checkForAvailability (String nameOfColumn, List<String> createdColumns){
+                for (String s : createdColumns){
+                    if(nameOfColumn.equals(s)){
                         return true;
                     }
                 }
+                return false;
+        }
+
+        //метод вытягивает из DataBasse именна уже созданых колонок и возвращает заполненый ими List<String>
+        public List<String> getListCreatedColumns (String nameOfTable) {
+            Connection connection = SQLUtilities.getConnection();
+            ResultSet rs = null;
+            List<String> createdColumns = new ArrayList<>();
+            String comand = "show columns from " + nameOfDataBase + "." + nameOfTable;
+            try (PreparedStatement statement = connection.prepareStatement(comand)) {
+                rs = statement.executeQuery();
+                while (rs.next()) {
+                    createdColumns.add(rs.getString("Field"));
+                }
+                return createdColumns;
             } catch (SQLException e) {
                 e.printStackTrace();
             }
-            return false;
+            return null;
         }
 }

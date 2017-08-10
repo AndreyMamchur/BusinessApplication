@@ -1,18 +1,19 @@
 import java.io.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Month;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 public class FileUtilities {
 
-    private FileUtilities() {
+    public FileUtilities() {
     }
 
-    public static void writeFile(String nameOfFile, List<String> line){
+    //метод получает данные и записывает их в файл
+    public static void writeListToFile(String nameOfFile, List<String> line){
         try (PrintWriter outputStream = new PrintWriter(new FileWriter(nameOfFile))) {
             for (String s : line){
                 outputStream.println(s);
@@ -23,7 +24,8 @@ public class FileUtilities {
         }
     }
 
-    public static List<String> readFile(String nameOfFile){
+    //метод читает файл построчно и возвращает List<String>
+    public static List<String> readFileToList(String nameOfFile){
         try (BufferedReader in = new BufferedReader(new FileReader(nameOfFile))) {
             String line;
             List<String> fileInList = new ArrayList<>();
@@ -39,28 +41,38 @@ public class FileUtilities {
         return  null;
     }
 
+    //метод возвращает масив строк полученый из первой строки из файла (названия полей)
+    public static String[] getNameOfFieldsDataBaseFromFile(String nameOfFile){
+        List<String> fileInList = FileUtilities.readFileToList(nameOfFile);
+        String[] nameOfFieldsDataBase = fileInList.get(0).split(";");
+        return nameOfFieldsDataBase;
+    }
+
+    //метод возвращает данные из файла, кроме первой строки (значение полей)
+    public static List<String> getListWitchInformationFromFile(String nameOfFile){
+        List<String> fileInList = FileUtilities.readFileToList(nameOfFile);
+        fileInList.remove(0);
+        return fileInList;
+    }
+
+    //метод возвращает List<Customer> с заполнеными и создаными объектами класса Customer, используя информацию из файла
     public static List<Customer> getArrayListOfCustomerFromFile(String nameOfFile, List<Item> items) {
         if (nameOfFile.equals(null)) {
             System.out.println("nameOfFile = null");
             return null;
         }
         List<Customer> customers = new ArrayList<>();
-        Customer customer = new Customer();
-        List<String> fileInList = FileUtilities.readFile(nameOfFile);
-        String[] nameOfFields = null;
-        for (int i = 0; i<fileInList.size(); i++) {
-            if (i == 0) {
-                    Pattern pattern = Pattern.compile(";");
-                    nameOfFields = pattern.split(fileInList.get(i));
-                    continue;
-                }
-            customer = FileUtilities.getCustomerFromLine(fileInList.get(i), nameOfFields, items);
+        Customer customer = null;
+        List<String> valueOfFieldsInList = FileUtilities.getListWitchInformationFromFile(nameOfFile);
+        for (int i = 0; i<valueOfFieldsInList.size(); i++) {
+            customer = FileUtilities.getCustomerFromLine(valueOfFieldsInList.get(i), items);
             customers.add(customer);
         }
         return customers;
     }
 
-    public static Customer getCustomerFromLine(String line, String[] nameOfFields, List<Item> items) {
+    //метод создает объект Customer и заполняет его поля
+    public static Customer getCustomerFromLine(String line, List<Item> items) {
         if (line.equals(null)) {
             System.out.println("line = null");
             return null;
@@ -75,18 +87,16 @@ public class FileUtilities {
 
         customer.setName(fields[0]);
 
-        pattern = Pattern.compile(" ");
-        String[] dateOfBirth = pattern.split(fields[1]);
-        customer.setDateOfBirth(LocalDate.of(Integer.parseInt(dateOfBirth[2]), Month.valueOf(dateOfBirth[1].toUpperCase()), Integer.parseInt(dateOfBirth[0])));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.US);
+        customer.setDateOfBirth(LocalDate.parse(fields[1], formatter)); //переделал на DateTimeFormatter
 
-        customer.setAddress(fields[2]);
+        customer.setAddress(fields[2].replaceAll("\"", ""));
         customer.setGender(fields[3]);
         customer.setPhoneNumber(fields[4]);
 
-        String result = fields[5].replaceAll("\"", "");
-        fields[5] = result;
-        pattern = Pattern.compile(",");
-        String[] lastPurchasesArray = pattern.split(fields[5]);
+        //заполнение листа lastPurchases для Customer
+        fields[5] = fields[5].replaceAll("\"", ""); //удаляю кавычки
+        String[] lastPurchasesArray = fields[5].split(",");  //разбиваю на масив
         List<Item> lastPurchases = new ArrayList<>();
         for (int i = 0; i<items.size();i++){
             for (int j = 0; j<lastPurchasesArray.length;j++) {
@@ -97,9 +107,8 @@ public class FileUtilities {
         }
         customer.setLastPurchases(lastPurchases);
 
-        pattern = Pattern.compile("/");
-        String[] dateOfLustPurchase = pattern.split(fields[6]);
-        customer.setDateOfLustPurchase(LocalDate.of(Integer.parseInt(dateOfLustPurchase[2]), Month.of(Integer.parseInt(dateOfLustPurchase[0])), Integer.parseInt(dateOfLustPurchase[1])));
+        formatter = DateTimeFormatter.ofPattern("M/d/yyyy");
+        customer.setDateOfLustPurchase(LocalDate.parse(fields[6], formatter)); //переделал на DateTimeFormatter
         return customer;
     }
 
@@ -163,11 +172,10 @@ public class FileUtilities {
                         item.setProducer(buffer);
                         break;
                     case 5:
-                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
-                        buffer = FileUtilities.formatterStringForDate(buffer);
-                        LocalDateTime localDateTime = LocalDateTime.parse(buffer, formatter);
-                        item.setDateOfLastUpdate(localDateTime);
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm:ss");
+                        item.setDateOfLastUpdate(LocalDateTime.parse(buffer, formatter));
                         break;
+
                 }
                 buffer = "";
             } else {
@@ -175,19 +183,5 @@ public class FileUtilities {
             }
         }
         return item;
-    }
-
-    public static String formatterStringForDate(String buffer){
-        char[] lineCharArray = buffer.toCharArray();
-        String dateTime = "";
-        for (int i = 0; i<lineCharArray.length;i++) {
-            if (lineCharArray[i] == ' ' && lineCharArray[i+2] == ':'){
-                dateTime += lineCharArray[i];
-                dateTime += '0';
-            } else {
-                dateTime += lineCharArray[i];
-            }
-        }
-        return dateTime;
     }
 }
