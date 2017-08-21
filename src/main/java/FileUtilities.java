@@ -1,4 +1,6 @@
 import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -8,13 +10,15 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 public class FileUtilities {
+    public static final Path importPatch = Paths.get("D:\\IntelIdeaWorkspace\\ProjectJavaSE\\import");
+    public static final Path exportPatch = Paths.get("D:\\IntelIdeaWorkspace\\ProjectJavaSE\\export");
 
     public FileUtilities() {
     }
 
     //метод получает данные и записывает их в файл
     public static void writeListToFile(String nameOfFile, List<String> line){
-        try (PrintWriter outputStream = new PrintWriter(new FileWriter(nameOfFile))) {
+        try (PrintWriter outputStream = new PrintWriter(new FileWriter(exportPatch.resolve(nameOfFile).toString()))) {
             for (String s : line){
                 outputStream.println(s);
             }
@@ -26,7 +30,7 @@ public class FileUtilities {
 
     //метод читает файл построчно и возвращает List<String>
     public static List<String> readFileToList(String nameOfFile){
-        try (BufferedReader in = new BufferedReader(new FileReader(nameOfFile))) {
+        try (BufferedReader in = new BufferedReader(new FileReader(importPatch.resolve(nameOfFile).toString()))) {
             String line;
             List<String> fileInList = new ArrayList<>();
             while ((line = in.readLine()) != null){
@@ -122,7 +126,7 @@ public class FileUtilities {
         }
         List<Item> items = new ArrayList<>();
         Item item = null;
-        try (BufferedReader in = new BufferedReader(new FileReader(nameOfFile))) {
+        try (BufferedReader in = new BufferedReader(new FileReader(importPatch.resolve(nameOfFile).toString()))) {
             String line;
             int count = 0;
             while ((line = in.readLine()) != null) {
